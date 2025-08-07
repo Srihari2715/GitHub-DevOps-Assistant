@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GitHub DevOps Assistant</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  header {
+    width: 100vw;
+    background-color: #24292e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0.5rem;
+    min-height: 60px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .header-logo {
+    width: 32px; height: 32px; border-radius: 50%; background: #fff; padding: 4px;
+  }
+  .header-title {
+    color: white; font-size: 1.18rem; font-weight: 600; margin: 0;
+  }
+  #chatbox {
+    background: white;
+    width: 97vw; max-width: 470px; height: 480px;
+    margin: 10px 0 6px 0; border-radius: 12px;
+    padding: 10px 6px; display: flex; flex-direction: column; overflow-y: auto;
+    box-shadow: 0 0 6px rgba(60,32,38,0.1);
+  }
+  .message-row { display: flex; align-items: flex-end; margin-bottom: 7px; }
+  .message-row.user { justify-content: flex-end; }
+  .message-row.bot { justify-content: flex-start; }
+  .chat-avatar {
+    width: 28px; height: 28px; border-radius: 50%; margin: 0 6px; background: #eef3f5; object-fit: cover; flex-shrink: 0;
+  }
+  .chat-bubble {
+    padding: 10px 15px; border-radius: 16px; font-size: 0.97em;
+    box-shadow: 0 1px 2px rgba(30,42,80,0.06);
+    background: #ddf4ff; color: #0366d6;
+    max-width: 85%; word-break: break-word; white-space: pre-line; margin: 0;
+  }
+  .message-row.bot .chat-bubble {
+    background: #f6f8fa; color: #23292f;
+    border-bottom-left-radius: 6px; border-top-left-radius: 6px;
+    border-bottom-right-radius: 16px; border-top-right-radius: 16px;
+  }
+  .message-row.user .chat-bubble {
+    background: #4184c2; color: #fff;
+    border-bottom-right-radius: 6px; border-top-right-radius: 6px;
+    border-bottom-left-radius: 16px; border-top-left-radius: 16px;
+  }
+  #inputArea {
+    width: 97vw; max-width: 470px; display: flex; gap: 6px; margin-bottom: 10px;
+  }
+  input {
+    flex: 1; padding: 0.7rem 1rem; font-size: 1em; border-radius: 16px;
+    border: 1px solid #cdcfd2; background: #f7fafc; outline: none; min-width: 0;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: #2ea44f; }
+  button {
+    padding: 0.7rem 1.1rem; border: none; background-color: #2ea44f; color: white;
+    border-radius: 16px; font-weight: 500; font-size: 1em; cursor: pointer;
+    transition: background 0.18s;
+  }
+  button:hover { background-color: #22743a; }
+  /* Suggested question buttons inside chat */
+  .suggestion {
+    background: #2ea44f; color: white; border: none; border-radius: 12px; padding: 5px 10px;
+    font-size: 0.93em; cursor: pointer; margin: 3px 4px 3px 0; display: inline-block; transition: background-color 0.18s;
+    user-select: none;
+  }
+  .suggestion:hover { background-color: #1c6d2f; }
+  .side-tip {
+    font-size: 0.95em; color: #687282; background: #f1f5f9; border-radius: 9px; padding: 6px 11px; margin-top: 4px;
+    display: inline-block;
+  }
+  @media (max-width: 520px) {
+    .header-title { font-size: 1.01rem; }
+    #chatbox, #inputArea { max-width: 99vw; min-width: 0; padding-left: 1px; padding-right: 1px; }
+    header { min-height: 43px; }
+  }
+  /* Minimal scrollbar for chat */
+  #chatbox::-webkit-scrollbar {
+    width: 6px; background: #f6f8fa; border-radius: 10px;
+  }
+  #chatbox::-webkit-scrollbar-thumb {
+    background: #c5d0e6; border-radius: 10px;
+  }
+  /* Responsive code blocks inside chat */
+  code {
+    background: #edf2fa;
+    border-radius: 4px;
+    padding: 2px 4px;
+    color: #2c3e50;
+    font-size: 98%;
+    font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  }
+  pre {
+    background: #19202d;
+    color: #d6eaff;
+    border-radius: 6px;
+    font-size: 96%;
+    padding: 8px 10px;
+    overflow-x: auto;
+    line-height: 1.56;
+    margin: 8px 0 2px 0;
+    font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  }
+</style>
+</head>
+<body>
+<header>
+  <img class="header-logo" src="https://github.githubassets.com/favicons/favicon.png" alt="GitHub logo" />
+  <span class="header-title">GitHub DevOps Assistant</span>
+</header>
+<div id="chatbox"></div>
+<div id="inputArea">
+  <input type="text" id="userInput" placeholder="Ask about git, GitHub Actions, CI/CD, merge conflicts, etc." autocomplete="off" />
+  <button onclick="sendMessage()">Send</button>
+</div>
+
+
+<script>
+  const chatbox = document.getElementById("chatbox");
+  const input = document.getElementById("userInput");
+  const botAvatar = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png";
+  const userAvatar = "https://avatars.githubusercontent.com/u/9919?s=64";
+
+
+  // Add message function with avatars
+  function addMessage(message, sender) {
+    const row = document.createElement("div");
+    row.className = `message-row ${sender}`;
+
+
+    const avatar = document.createElement("img");
+    avatar.src = sender === "bot" ? botAvatar : userAvatar;
+    avatar.className = "chat-avatar";
+    avatar.alt = sender === "bot" ? "Bot" : "User";
+
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+    bubble.innerHTML = message.replace(/\n/g, "<br>");
+
+
+    if (sender === "user") {
+      row.appendChild(bubble);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+    }
+
+
+    chatbox.appendChild(row);
+    chatbox.scrollTop = chatbox.scrollHeight;
+
+
+    // Add click listeners for suggestion buttons if this is bot message
+    if (sender === "bot") {
+      const suggestions = row.querySelectorAll(".suggestion");
+      suggestions.forEach(button => {
+        button.addEventListener("click", () => {
+          sendSuggestedQuestion(button.textContent);
+        });
+      });
+    }
+  }
+
+
+  // Typing indicator
+  function showTypingIndicator() {
+    removeTypingIndicator();
+    const row = document.createElement("div");
+    row.className = "message-row bot";
+    row.id = "typing-indicator";
+
+
+    const avatar = document.createElement("img");
+    avatar.src = botAvatar;
+    avatar.className = "chat-avatar";
+    avatar.alt = "Bot";
+
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+    bubble.innerHTML = "<i>GitHub Assistant is typing...</i>";
+
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+
+
+    chatbox.appendChild(row);
+    chatbox.scrollTop = chatbox.scrollHeight;
+  }
+
+
+  function removeTypingIndicator() {
+    const elem = document.getElementById("typing-indicator");
+    if (elem) chatbox.removeChild(elem);
+  }
+
+
+  // Send user message and get bot response
+  function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(text, "user");
+    input.value = "";
+    showTypingIndicator();
+    setTimeout(() => {
+      removeTypingIndicator();
+      addMessage(getBotResponse(text), "bot");
+    }, 700);
+  }
+
+
+  // Send suggested question when clicked
+  function sendSuggestedQuestion(question) {
+    input.value = question;
+    sendMessage();
+  }
+
+
+  // Allow Enter key to send message (no Shift+Enter)
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+
+  // Main Bot Q&A Response Logic with your full dataset integrated
+  function getBotResponse(rawInput) {
+    const text = rawInput.toLowerCase();
+
+
+    // === Git & GitHub Basics ===
+    if (/what is git\??/.test(text)) {
+      return `Git is a distributed version control system that tracks changes in source code during software development.`;
+    }
+    if (/what is github\??/.test(text)) {
+      return `GitHub is a web-based hosting platform for Git repositories, enabling collaboration, code sharing, and version control.`;
+    }
+    if (/difference between git and github\??/.test(text) || /git and github difference/.test(text)) {
+      return `Git is a version control tool; GitHub is a hosting service that uses Git.`;
+    }
+    if (/what is a repository\??/.test(text)) {
+      return `A repository is a project directory that contains all files, folders, and version history tracked by Git.`;
+    }
+    if (/how to create a github repo\??/.test(text)) {
+      return `To create a GitHub repository:<br>
+1. Log in to GitHub.<br>
+2. Click "New".<br>
+3. Name your repository.<br>
+4. Choose its visibility (public or private).<br>
+5. Click "Create repository".`;
+    }
+    if (/what is git init\??/.test(text)) {
+      return `git init initializes a new Git repository in your current directory, preparing it to track version history.`;
+    }
+    if (/what is git clone\??/.test(text)) {
+      return `git clone copies a remote repository to your local machine so you can work on it locally.`;
+    }
+    if (/what is git commit\??/.test(text)) {
+      return `git commit records a snapshot of the staged changes to your repository (a save point).`;
+    }
+    if (/what is git push\??/.test(text)) {
+      return `git push uploads your local commits to the remote repository (like GitHub).`;
+    }
+    if (/what is git pull\??/.test(text)) {
+      return `git pull fetches and merges changes from the remote repository into your current branch.`;
+    }
+
+
+    // === Branching & Merging ===
+    if (/how to create a branch\??/.test(text)) {
+      return `Create a branch using:\n<code>git branch branch-name</code> or\n<code>git checkout -b branch-name</code>.`;
+    }
+    if (/what is a merge\??/.test(text)) {
+      return `A merge combines changes from one branch into another, integrating work from multiple lines of development.`;
+    }
+    if (/what is a merge conflict\??/.test(text)) {
+      return `A merge conflict happens when Git cannot automatically combine code from two branches conflicting on the same lines.`;
+    }
+    if (/how to resolve a merge conflict\??/.test(text)) {
+      return `To resolve a merge conflict:\n1. Edit files showing conflict markers <<<<<<<, =======, >>>>>>>.\n2. Decide which changes to keep.\n3. Save files and stage them:\n<code>git add filename</code>\n4. Commit the resolution:\n<code>git commit -m "Resolve merge conflict"</code>.`;
+    }
+    if (/what is git rebase\??/.test(text)) {
+      return `git rebase moves or combines commits to make your history cleaner and linear by replaying your changes on top of another base branch.`;
+    }
+    if (/rebase vs merge\??/.test(text)) {
+      return `Rebase rewrites history to create a linear commit sequence, while merge preserves all commits and creates a merge commit.`;
+    }
+    if (/what is git checkout\??/.test(text)) {
+      return `git checkout switches branches or restores files in your working directory.`;
+    }
+    if (/how to delete a branch\??/.test(text)) {
+      return `Delete a branch locally using:\n<code>git branch -d branch-name</code>.`;
+    }
+    if (/what is head in git\??/.test(text)) {
+      return `HEAD refers to your current branch or commit pointer — basically where you are in your repo history.`;
+    }
+    if (/detached head/.test(text)) {
+      return `Detached HEAD means you have checked out a specific commit, not a branch. To keep changes create a branch:\n<code>git checkout -b new-branch</code>.`;
+    }
+
+
+    // === Common Git Commands ===
+    if (/git status/.test(text)) {
+      return `git status shows the current branch and staged, unstaged, or untracked files in your working tree.`;
+    }
+    if (/git log/.test(text)) {
+      return `git log displays the commit history of your repository.`;
+    }
+    if (/git diff/.test(text)) {
+      return `git diff shows differences between commits, branches, or working directory and staging area.`;
+    }
+    if (/git add/.test(text)) {
+      return `git add stages changes to prepare them for a commit. Use <code>git add .</code> to stage all changes.`;
+    }
+    if (/git reset/.test(text)) {
+      return `git reset unstages files or reverses commits.\nExample:\n- Unstage a file: <code>git reset HEAD filename</code>`;
+    }
+    if (/git stash/.test(text)) {
+      return `git stash temporarily saves your uncommitted changes so you can work on something else. Use:\n- <code>git stash</code>\n- <code>git stash list</code>\n- <code>git stash pop</code>`;
+    }
+    if (/git tag/.test(text)) {
+      return `git tag marks points in your history as important (e.g., releases).`;
+    }
+    if (/git rm/.test(text)) {
+      return `git rm removes files from the working directory and staging area.`;
+    }
+    if (/git config/.test(text)) {
+      return `git config sets Git configuration options like username, email, or aliases.`;
+    }
+    if (/git clean/.test(text)) {
+      return `git clean removes untracked files from your working directory. Be careful!`;
+    }
+
+
+    // === GitHub Features ===
+    if (/what is a fork\??/.test(text)) {
+      return `A fork is a personal copy of a repository you can freely modify and push without affecting the original.`;
+    }
+    if (/what is a pull request|pr\??/.test(text)) {
+      return `A pull request is a request to merge your branch changes into another branch, typically in the upstream repository.`;
+    }
+    if (/what is github actions\??/.test(text)) {
+      return `GitHub Actions automates workflows like building, testing, and deploying your code using YAML configuration files.`;
+    }
+    if (/what is a github issue\??/.test(text)) {
+      return `GitHub Issues track tasks, bugs, and feature requests for your projects.`;
+    }
+    if (/what are github discussions\??/.test(text)) {
+      return `GitHub Discussions provide a forum-like space for Q&A and community feedback within repos.`;
+    }
+    if (/what are github pages\??/.test(text)) {
+      return `GitHub Pages lets you host static websites directly from your GitHub repository.`;
+    }
+    if (/what is a github gist\??/.test(text)) {
+      return `GitHub Gists are a quick way to share code snippets or text documents publicly or privately.`;
+    }
+    if (/how to assign reviewers to a pr\??/.test(text)) {
+      return `Open your PR on GitHub, find the "Reviewers" section on the right sidebar, and add usernames to request reviews.`;
+    }
+    if (/what is github copilot\??/.test(text)) {
+      return `GitHub Copilot is an AI pair programmer that suggests code while you type.`;
+    }
+    if (/can github repos be private\??/.test(text)) {
+      return `Yes, GitHub supports both public and private repositories depending on your plan.`;
+
+
+    // === Troubleshooting & Errors ===
+    } else if (/undo last commit/.test(text)) {
+      return `Undo last commit locally with:\n<code>git reset --soft HEAD~1</code>`;
+    } else if (/delete commit history/.test(text)) {
+      return `Rewrite history using interactive rebase:\n<code>git rebase -i HEAD~n</code> or use filter-branch.`;
+    } else if (/fatal: not a git repository/.test(text)) {
+      return `Make sure you are in a directory initialized with Git. Check with <code>git status</code>.`;
+    } else if (/how to fix merge conflicts/.test(text)) {
+      return `Open conflicting files, edit to fix conflicts, stage with <code>git add</code>, then commit.`;
+    } else if (/push rejected|non-fast-forward/.test(text)) {
+      return `Pull latest changes first: <code>git pull</code> or force push with <code>git push --force</code> if safe.`;
+    } else if (/recover deleted commits/.test(text)) {
+      return `Use <code>git reflog</code> to find lost commits, then <code>git checkout</code> or <code>git reset</code>.`;
+    } else if (/permission denied.*publickey/.test(text)) {
+      return `Add your SSH public key to GitHub or clone with HTTPS instead of SSH.`;
+    } else if (/repo not updating/.test(text)) {
+      return `Check your remote URL (<code>git remote -v</code>) and ensure you push/pull to the correct branch.`;
+    } else if (/remove file from git.*not delete/.test(text)) {
+      return `Use <code>git rm --cached filename</code> to remove from tracking but keep the file locally.`;
+    } else if (/changes not staged/.test(text)) {
+      return `Stage with <code>git add</code> before committing. Use <code>git status</code> to see file states.`;
+
+
+    // === Authentication & Access ===
+    } else if (/how to set ssh key/.test(text)) {
+      return `Generate SSH key: <code>ssh-keygen -t ed25519 -C "email@example.com"</code><br>
+Add the public key to GitHub under Settings → SSH and GPG keys.<br>
+Test connection with <code>ssh -T git@github.com</code>.`;
+    } else if (/what is pat|personal access token/.test(text)) {
+      return `PAT is a token you create in GitHub to securely authenticate over HTTPS instead of using your password.`;
+    } else if (/clone private repo/.test(text)) {
+      return `Use SSH authentication or HTTPS URL with a PAT for cloning private repositories.`;
+    } else if (/can collaborators commit to private repos/.test(text)) {
+      return `Yes, with write access collaborators can push to private repositories.`;
+    } else if (/how to invite collaborators/.test(text)) {
+      return `Go to your repo → Settings → Collaborators and invite users by username or email.`;
+
+
+    // === More advanced git questions ===
+    } else if (/what is git flow/.test(text)) {
+      return `Git flow is a branching model with branches like master, develop, feature, release, and hotfix for managing releases.`;
+    } else if (/what is trunk-based development/.test(text)) {
+      return `Developers work on short-lived branches or directly on the main branch, enabling frequent integrations.`;
+    } else if (/what is squash commits/.test(text)) {
+      return `Squash commits combines multiple commits into one, typically done with interactive rebase <code>git rebase -i</code>.`;
+    } else if (/when to use --amend/.test(text)) {
+      return `Use <code>git commit --amend</code> to modify the last commit's message or content before pushing.`;
+    } else if (/good commit message format/.test(text)) {
+      return `Start with a short summary (<50 chars), then a blank line, followed by a detailed description if needed.`;
+    } else if (/how to keep fork in sync/.test(text)) {
+      return `Add upstream remote and fetch changes:\n<code>git remote add upstream URL</code>\n<code>git fetch upstream</code>\nMerge or rebase the upstream main branch.`;
+    } else if (/how to rebase safely/.test(text)) {
+      return `Only rebase local branches not yet pushed or shared; avoid rebasing published commits to prevent history issues.`;
+    } else if (/fork vs clone/.test(text)) {
+      return `Fork when contributing to someone else's repo; clone to work on your own or after forking.`;
+    } else if (/what is shallow clone/.test(text)) {
+      return `Clone only recent history with <code>git clone --depth=1</code>.`;
+    } else if (/how to check remote url/.test(text)) {
+      return `Use <code>git remote -v</code> to see currently configured remote URLs.`;
+    } else if (/how to change remote url/.test(text)) {
+      return `Use <code>git remote set-url origin new-url</code> to modify remote URLs.`;
+    } else if (/how to rename a branch/.test(text)) {
+      return `Rename a branch using <code>git branch -m old-name new-name</code>.`;
+    } else if (/what is origin in git/.test(text)) {
+      return `origin is the default alias for the main remote repository you cloned from or push to.`;
+    } else if (/how to pull specific branch/.test(text)) {
+      return `Use <code>git pull origin branch-name</code> to pull changes from a specific branch.`;
+    } else if (/how to push to different remote/.test(text)) {
+      return `Use <code>git push remote-name branch-name</code> to push to a remote other than origin.`;
+    } else if (/prevent accidental force push/.test(text)) {
+      return `Use branch protection rules or prefer <code>git push --force-with-lease</code> over plain force push.`;
+    } else if (/ignore file types globally/.test(text)) {
+      return `Create a global gitignore file and configure with:\n<code>git config --global core.excludesfile ~/.gitignore_global</code>.`;
+    } else if (/enable git aliases/.test(text)) {
+      return `Use <code>git config --global alias.co checkout</code> to create shortcuts for git commands.`;
+    } else if (/what is git hook/.test(text)) {
+      return `Git hooks are scripts triggered by events (like commit, push) found in <code>.git/hooks/</code>.`;
+    } else if (/validate commit messages/.test(text)) {
+      return `Use commit-msg hooks with regex patterns to enforce commit message format during commits.`;
+    } else if (/track file renames/.test(text)) {
+      return `Git auto-detects renames; see history with <code>git log --follow filename</code>.`;
+    } else if (/revert multiple commits/.test(text)) {
+      return `Use <code>git revert SHA1..SHA2</code> to revert a range of commits by creating new commits.`;
+    } else if (/difference between revert and reset/.test(text)) {
+      return `Revert creates new commits undoing changes; reset moves HEAD and changes branch history.`;
+    } else if (/good branching strategy/.test(text)) {
+      return `Use main + feature branches + release branches to organize development cleanly.`;
+    } else if (/what is git describe/.test(text)) {
+      return `git describe shows the nearest tag reachable from the current commit.`;
+    } else if (/what is git cherry/.test(text)) {
+      return `git cherry shows commits present in one branch but not in another.`;
+    } else if (/fast-forward merge/.test(text)) {
+      return `A fast-forward merge updates your branch pointer without creating a new commit.`;
+    } else if (/non-fast-forward merge/.test(text)) {
+      return `A merge requiring a commit, usually because histories have diverged.`;
+    } else if (/delete remote branch/.test(text)) {
+      return `Delete a remote branch with: <code>git push origin --delete branch-name</code>.`;
+
+
+    // === ADVANCED GITHUB ACTIONS & CI/CD ===
+    } else if (/advanced github actions|complex workflows/.test(text)) {
+      return `<b>Advanced GitHub Actions:</b><br>
+• <b>Matrix builds:</b> Test across multiple OS/versions<br>
+• <b>Conditional workflows:</b> Run based on file changes<br>
+• <b>Secrets management:</b> Secure environment variables<br>
+• <b>Reusable workflows:</b> Share workflows across repos<br>
+• <b>Self-hosted runners:</b> Custom build environments<br>
+<div class="side-tip">💡 Use workflow_dispatch for manual triggers</div>`;
+    } else if (/matrix builds|test multiple versions/.test(text)) {
+      return `Matrix builds test across multiple environments:<br>
+<pre>strategy:
+  matrix:
+    os: [ubuntu-latest, windows-latest]
+    node: [16, 18, 20]</pre>
+This creates 6 job combinations (3 OS × 2 Node versions).`;
+    } else if (/github actions secrets/.test(text)) {
+      return `GitHub Secrets store sensitive data securely:<br>
+• Add in repo Settings → Secrets and variables<br>
+• Access via <code>\${{ secrets.SECRET_NAME }}</code><br>
+• Organization-level secrets for multiple repos<br>
+• Environment-specific secrets for staged deployments`;
+    } else if (/workflow concurrency/.test(text)) {
+      return `Control workflow execution with concurrency:<br>
+<pre>concurrency:
+  group: 'deployment'
+  cancel-in-progress: true</pre>
+This prevents multiple deployments running simultaneously.`;
+    } else if (/reusable workflows/.test(text)) {
+      return `Share workflows across repositories:<br>
+<pre>jobs:
+  call-workflow:
+    uses: org/repo/.github/workflows/reusable.yml@main
+    with:
+      environment: production</pre>
+Promotes DRY principles and standardization.`;
+    } else if (/self-hosted runners/.test(text)) {
+      return `Self-hosted runners provide custom environments:<br>
+• Install runner software on your machines<br>
+• Configure with specific tools/dependencies<br>
+• Better security for sensitive workloads<br>
+• Cost savings for large-scale builds`;
+
+
+    // === GITHUB SECURITY FEATURES ===
+    } else if (/github advanced security|code scanning/.test(text)) {
+      return `<b>GitHub Advanced Security includes:</b><br>
+• <b>CodeQL analysis:</b> Static code analysis for vulnerabilities<br>
+• <b>Secret scanning:</b> Detect exposed credentials<br>
+• <b>Dependency scanning:</b> Find vulnerable packages<br>
+• <b>Push protection:</b> Prevent secret commits<br>
+• <b>Security advisories:</b> Private vulnerability disclosure`;
+    } else if (/codeql analysis|static analysis/.test(text)) {
+      return `CodeQL performs semantic code analysis:<br>
+<pre>- uses: github/codeql-action/init@v3
+  with:
+    languages: javascript, python
+- uses: github/codeql-action/analyze@v3</pre>
+Detects SQL injection, XSS, and other security issues.`;
+    } else if (/secret scanning|push protection/.test(text)) {
+      return `Secret scanning prevents credential leaks:<br>
+• Scans commits for API keys, tokens, passwords<br>
+• Push protection blocks commits with secrets<br>
+• Partner program covers 200+ service providers<br>
+• Custom patterns for internal secrets`;
+    } else if (/dependabot|dependency updates/.test(text)) {
+      return `Dependabot keeps dependencies updated:<br>
+<pre># .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: daily</pre>
+Automatically opens PRs for security updates.`;
+    } else if (/branch protection rules/.test(text)) {
+      return `Branch protection enforces quality standards:<br>
+• Require PR reviews before merging<br>
+• Require status checks to pass<br>
+• Restrict force pushes and deletions<br>
+• Dismiss stale reviews on new commits<br>
+• Require up-to-date branches`;
+
+
+    // === PROJECT MANAGEMENT ===
+    } else if (/github projects|project boards/.test(text)) {
+      return `<b>GitHub Projects offer advanced project management:</b><br>
+• <b>Custom fields:</b> Story points, priority, iterations<br>
+• <b>Multiple views:</b> Table, board, roadmap, calendar<br>
+• <b>Automation:</b> Auto-add issues, update statuses<br>
+• <b>Cross-repo:</b> Track work across multiple repositories<br>
+• <b>Insights:</b> Burndown charts, velocity tracking`;
+    } else if (/project automation|github projects api/.test(text)) {
+      return `Automate project management with workflows:<br>
+<pre>- uses: actions/add-to-project@v1
+  with:
+    project-url: https://github.com/orgs/ORG/projects/1
+    github-token: \${{ secrets.GITHUB_TOKEN }}</pre>
+Auto-add issues/PRs to project boards on creation.`;
+    } else if (/codeowners file/.test(text)) {
+      return `CODEOWNERS automates review assignments:<br>
+<pre># .github/CODEOWNERS
+docs/**           @tech-writers
+src/api/**        @backend-team  
+*.js             @frontend-team</pre>
+Automatically requests reviews from relevant teams.`;
+
+
+    // === GITHUB CLI ===
+    } else if (/github cli|gh commands/.test(text)) {
+      return `<b>GitHub CLI brings GitHub to your terminal:</b><br>
+• <code>gh repo create</code> - Create repositories<br>
+• <code>gh pr create</code> - Create pull requests<br>
+• <code>gh issue list</code> - Manage issues<br>
+• <code>gh run list</code> - View workflow runs<br>
+• <code>gh auth login</code> - Authenticate with GitHub`;
+    } else if (/gh aliases|github cli shortcuts/.test(text)) {
+      return `Create custom GitHub CLI shortcuts:<br>
+<pre>gh alias set prd "pr create --draft"
+gh alias set myissues "issue list --author @me"
+gh alias set deploy "workflow run deploy.yml"</pre>
+Now use <code>gh prd</code> instead of the full command.`;
+    } else if (/github cli api/.test(text)) {
+      return `Use GitHub CLI to call the API directly:<br>
+<pre>gh api repos/owner/repo/issues
+gh api -X POST repos/owner/repo/issues \\
+  -f title="Bug report" \\
+  -f body="Description"</pre>
+Scriptable automation for any GitHub operation.`;
+
+
+    // === GITHUB MOBILE ===
+    } else if (/github mobile|mobile app/.test(text)) {
+      return `<b>GitHub Mobile lets you manage repos on-the-go:</b><br>
+• Review and merge pull requests<br>
+• Triage and assign issues<br>
+• Browse code and commit history<br>
+• Manage notifications<br>
+• Dark mode and offline support<br>
+Available on iOS and Android app stores.`;
+
+
+    // === GITHUB COPILOT ===
+    } else if (/github copilot features|copilot advanced/.test(text)) {
+      return `<b>GitHub Copilot features:</b><br>
+• <b>Code completion:</b> AI-powered suggestions as you type<br>
+• <b>Chat interface:</b> Ask coding questions directly<br>
+• <b>Code explanation:</b> Understand complex code blocks<br>
+• <b>Test generation:</b> Auto-generate unit tests<br>
+• <b>Custom instructions:</b> Personalized coding style<br>
+• <b>Multi-language:</b> 30+ programming languages`;
+    } else if (/copilot chat|copilot questions/.test(text)) {
+      return `Copilot Chat provides conversational AI assistance:<br>
+• Explain complex code in plain English<br>
+• Generate code from natural language descriptions<br>
+• Suggest optimizations and best practices<br>
+• Help with debugging and error resolution<br>
+• Available in VS Code, Visual Studio, JetBrains IDEs`;
+
+
+    // === WEBHOOKS & INTEGRATIONS ===
+    } else if (/github webhooks|webhook setup/.test(text)) {
+      return `<b>Webhooks notify external systems of GitHub events:</b><br>
+• Configure in repo Settings → Webhooks<br>
+• Payload URL receives HTTP POST requests<br>
+• Events: push, pull_request, issues, releases<br>
+• Secure with webhook secrets (HMAC-SHA256)<br>
+• Integrate with CI/CD, chat apps, deployment tools`;
+    } else if (/webhook security|verify webhook/.test(text)) {
+      return `Secure webhooks with signature verification:<br>
+<pre>const signature = req.headers['x-hub-signature-256'];
+const hmac = crypto.createHmac('sha256', secret);
+hmac.update(JSON.stringify(req.body));
+const digest = 'sha256=' + hmac.digest('hex');</pre>
+Compare digest with signature to verify authenticity.`;
+
+
+    // === GITHUB API & AUTOMATION ===
+    } else if (/github rest api|api automation/.test(text)) {
+      return `<b>GitHub REST API enables powerful automation:</b><br>
+• <b>Authentication:</b> Personal access tokens or GitHub Apps<br>
+• <b>Rate limits:</b> 5,000 requests/hour (authenticated)<br>
+• <b>Pagination:</b> Use Link header for large datasets<br>
+• <b>Webhooks:</b> Real-time event notifications<br>
+• <b>GraphQL:</b> Flexible queries for complex data needs`;
+    } else if (/github graphql api/.test(text)) {
+      return `GraphQL API provides flexible data queries:<br>
+<pre>query {
+  repository(owner: "octocat", name: "Hello-World") {
+    issues(first: 10) {
+      nodes {
+        title
+        author { login }
+      }
+    }
+  }
+}</pre>
+Fetch exactly the data you need in single requests.`;
+    } else if (/github apps vs oauth/.test(text)) {
+      return `<b>GitHub Apps vs OAuth Apps:</b><br>
+• <b>GitHub Apps:</b> Act independently, fine-grained permissions<br>
+• <b>OAuth Apps:</b> Act on behalf of users, broader permissions<br>
+• <b>Use GitHub Apps for:</b> Automation, bots, CI/CD<br>
+• <b>Use OAuth Apps for:</b> User authentication, personal tools`;
+
+
+    // === GITHUB PACKAGES ===
+    } else if (/github packages|container registry/.test(text)) {
+      return `<b>GitHub Packages hosts your artifacts:</b><br>
+• <b>Container Registry (GHCR):</b> Docker images<br>
+• <b>npm packages:</b> JavaScript/Node.js modules<br>
+• <b>Maven packages:</b> Java artifacts<br>
+• <b>NuGet packages:</b> .NET libraries<br>
+• <b>RubyGems:</b> Ruby packages<br>
+Private packages require authentication.`;
+    } else if (/publish docker github/.test(text)) {
+      return `Publish Docker images to GitHub Container Registry:<br>
+<pre>docker login ghcr.io -u USERNAME -p TOKEN
+docker build -t ghcr.io/owner/image:tag .
+docker push ghcr.io/owner/image:tag</pre>
+Use GitHub Actions for automated publishing.`;
+
+
+    // === GITHUB DISCUSSIONS ===
+    } else if (/github discussions features/.test(text)) {
+      return `<b>GitHub Discussions enhance community engagement:</b><br>
+• <b>Categories:</b> Q&A, Ideas, Announcements, General<br>
+• <b>Reactions:</b> Upvote/downvote for prioritization<br>
+• <b>Threaded replies:</b> Organized conversation flow<br>
+• <b>Polls:</b> Gather community feedback<br>
+• <b>Answered questions:</b> Mark solutions for future reference`;
+
+
+    // === ADVANCED WORKFLOWS ===
+    } else if (/workflow templates|starter workflows/.test(text)) {
+      return `GitHub provides workflow templates for common scenarios:<br>
+• CI/CD for popular languages and frameworks<br>
+• Deployment to major cloud providers<br>
+• Security scanning and code quality<br>
+• Package publishing and release automation<br>
+Find templates in Actions tab → New workflow`;
+    } else if (/environment protection rules/.test(text)) {
+      return `Environment protection rules control deployments:<br>
+• <b>Required reviewers:</b> Manual approval before deploy<br>
+• <b>Wait timer:</b> Delay deployments by specified time<br>
+• <b>Branch restrictions:</b> Only deploy from main/release<br>
+• <b>Environment secrets:</b> Stage-specific variables`;
+    } else if (/composite actions|custom actions/.test(text)) {
+      return `Create reusable custom actions:<br>
+<pre># action.yml
+name: 'Custom Action'
+description: 'Reusable workflow step'
+inputs:
+  token:
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - run: echo "Custom logic here"</pre>
+Share across repositories and organizations.`;
+
+
+    // === GitHub Packages & Releases ===
+    } else if (/what is github packages/.test(text)) {
+      return `GitHub Packages is GitHub's platform to host package registries like npm, Docker, Maven, etc.`;
+    } else if (/publish npm package/.test(text)) {
+      return `Add GitHub registry to .npmrc and publish with your PAT token.`;
+    } else if (/publish docker image/.test(text)) {
+      return `Use <code>docker login ghcr.io</code> and push images to GitHub Container Registry (GHCR).`;
+    } else if (/what is github container registry/.test(text)) {
+      return `GHCR is GitHub's secure registry for container images.`;
+    } else if (/can github host private packages/.test(text)) {
+      return `Yes, private packages depend on your GitHub plan.`;
+    } else if (/delete published package/.test(text)) {
+      return `Go to GitHub Packages page in your repo/org to delete a package.`;
+    } else if (/what is a github release/.test(text)) {
+      return `A release is a tagged version with changelogs and binaries for your software.`;
+    } else if (/automate release creation/.test(text)) {
+      return `Use GitHub CLI or Actions workflows to automatically create releases.`;
+    } else if (/version a release/.test(text)) {
+      return `Use semantic versioning tags like v1.0.0 when releasing.`;
+    } else if (/attach assets to release/.test(text)) {
+      return `Upload files manually or via GitHub CLI/API in the release page.`;
+    } else if (/what is pre-release/.test(text)) {
+      return `Pre-releases are marked as unstable/testing versions on GitHub.`;
+    } else if (/releases trigger workflows/.test(text)) {
+      return `Workflows can run on release events via <code>on: release</code> triggers.`;
+
+
+    // === Security & Permissions ===
+    } else if (/what is branch protection/.test(text)) {
+      return `Branch protection prevents force pushes and enforces status checks and reviews on branches.`;
+    } else if (/what are required reviews/.test(text)) {
+      return `Required reviews block merges until at least one approved review is received.`;
+    } else if (/enable 2fa/.test(text)) {
+      return `Enable 2FA under Profile → Settings → Security for better account protection.`;
+    } else if (/what is dependabot/.test(text)) {
+      return `Dependabot scans dependencies and opens PRs for known vulnerabilities automatically.`;
+    } else if (/limit repo access/.test(text)) {
+      return `Use GitHub Teams and permission levels to control who can do what in your repo.`;
+    } else if (/what are github teams/.test(text)) {
+      return `Teams are groups of users sharing permissions to multiple repos or orgs.`;
+    } else if (/what is codeowners/.test(text)) {
+      return `CODEOWNERS file auto-assigns reviewers based on file paths for PRs.`;
+    } else if (/what is gpg key/.test(text)) {
+      return `GPG keys sign commits for verifying authorship and improving security.`;
+    } else if (/can github audit user actions/.test(text)) {
+      return `Enterprise GitHub accounts can audit user events via audit logs.`;
+    } else if (/report a security issue/.test(text)) {
+      return `Report security issues via the Security tab or private disclosure on GitHub.`;
+    } else if (/what are secrets/.test(text)) {
+      return `Secrets are encrypted environment variables stored securely for Actions workflows.`;
+    } else if (/can secrets be viewed/.test(text)) {
+      return `No, once uploaded, secrets are write-only and cannot be viewed again.`;
+    } else if (/what is security policy/.test(text)) {
+      return `A security policy documents how to responsibly report vulnerabilities in your project.`;
+    } else if (/how to make repo private/.test(text)) {
+      return `Go to repo Settings → Change visibility → Private to restrict access.`;
+    } else if (/what is a bot user/.test(text)) {
+      return `Bots are special accounts used by apps or automation tools on GitHub.`;
+    } else if (/restrict merge to admins/.test(text)) {
+      return `Enable branch protection rules and set required status/reviews for admins only.`;
+    } else if (/rotate tokens/.test(text)) {
+      return `Revoke old tokens and create new personal access tokens to improve security.`;
+    } else if (/oauth vs pat/.test(text)) {
+      return `OAuth is app-level authentication; PATs are personal tokens for individual users.`;
+    } else if (/what is saml sso/.test(text)) {
+      return `Enterprise feature to centrally manage access rights via Single Sign-On.`;
+    } else if (/can you lock a repo/.test(text)) {
+      return `Yes, you can archive or restrict repositories for stability or freezing history.`;
+
+
+    // === GitHub API ===
+    } else if (/what is github api/.test(text)) {
+      return `GitHub API provides REST and GraphQL endpoints for programmatic repo interaction.`;
+    } else if (/create github token/.test(text)) {
+      return `Create Personal Access Tokens in Developer Settings → Personal Access Tokens.`;
+    } else if (/what is webhook/.test(text)) {
+      return `Webhooks notify external services when repo events like pushes or PRs happen.`;
+    } else if (/list repo issues api/.test(text)) {
+      return `Use GET /repos/:owner/:repo/issues to list issues via REST API.`;
+    } else if (/create pr via api/.test(text)) {
+      return `Use POST /repos/:owner/:repo/pulls with title, head, and base to create PRs.`;
+    } else if (/list commits api/.test(text)) {
+      return `GET /repos/:owner/:repo/commits returns commit history via API.`;
+    } else if (/what is graphql api/.test(text)) {
+      return `GitHub GraphQL API allows flexible querying of GitHub data with a single request.`;
+    } else if (/trigger actions via api/.test(text)) {
+      return `Use POST /repos/:owner/:repo/actions/workflows/:id/dispatches to trigger workflows.`;
+    } else if (/what is github app/.test(text)) {
+      return `GitHub Apps are integrations with granular permissions installed on repos or orgs.`;
+    } else if (/oauth app vs github app/.test(text)) {
+      return `OAuth Apps act on behalf of users; GitHub Apps act independently with scoped permissions.`;
+    } else if (/app manifest/.test(text)) {
+      return `JSON file used for configuring GitHub App setup.`;
+    } else if (/can github app post comments/.test(text)) {
+      return `Yes, with write:discussion or write:issues permission scopes.`;
+    } else if (/installation tokens/.test(text)) {
+      return `Tokens scoped to a GitHub App installation used for API access.`;
+    } else if (/authenticate with github api/.test(text)) {
+      return `Add header 'Authorization: token <PAT>' for API authenticated requests.`;
+    } else if (/api rate limits/.test(text)) {
+      return `Authenticated: 5000 requests/hour; unauthenticated: 60/hour.`;
+    } else if (/read repo contents api/.test(text)) {
+      return `GET /repos/:owner/:repo/contents/:path to read a file or folder in repo via API.`;
+    } else if (/list contributors/.test(text)) {
+      return `GET /repos/:owner/:repo/contributors returns contributor stats.`;
+    } else if (/what is rest api v3/.test(text)) {
+      return `GitHub REST API v3 is the version used for RESTful interactions.`;
+    } else if (/list tags api/.test(text)) {
+      return `GET /repos/:owner/:repo/tags lists repository tags.`;
+    } else if (/branch protection api/.test(text)) {
+      return `GET /repos/:owner/:repo/branches/:branch/protection to see protection settings.`;
+    } else if (/delete repo api/.test(text)) {
+      return `DELETE /repos/:owner/:repo deletes a repository (requires authentication).`;
+    } else if (/github app trigger actions/.test(text)) {
+      return `GitHub Apps can trigger actions if permitted via workflow permissions.`;
+    } else if (/github api python/.test(text)) {
+      return `Use Python libraries like PyGitHub or requests to interact with GitHub API.`;
+    } else if (/secure tokens best practice/.test(text)) {
+      return `Store GitHub tokens in environment variables or GitHub Secrets, never in code.`;
+    } else if (/what is octokit/.test(text)) {
+      return `Octokit is GitHub's official JavaScript SDK for calling GitHub API easily.`;
+
+
+    // === Advanced Git Usage & Troubleshooting ===
+    } else if (/how to bisect/.test(text)) {
+      return `Use <code>git bisect</code> to find the commit that introduced a bug by binary search.`;
+    } else if (/git reflog/.test(text)) {
+      return `git reflog tracks where HEAD and branches have been, helping recover lost commits.`;
+    } else if (/revert merge commit/.test(text)) {
+      return `git revert -m 1 <merge_commit_sha> reverts a merge commit.`;
+    } else if (/git slow/.test(text)) {
+      return `Git can slow down with large repos or files; consider shallow clones or Git LFS.`;
+    } else if (/git gc/.test(text)) {
+      return `git gc runs garbage collection cleaning unnecessary files and optimizing repo.`;
+    } else if (/git packfile/.test(text)) {
+      return `Packfiles are compressed archives of Git objects for efficient storage.`;
+    } else if (/detached head/.test(text)) {
+      return `Detached HEAD means you checked out a commit, not a branch. Create a branch to save work: <code>git checkout -b new-branch</code>.`;
+    } else if (/reduce repo size/.test(text)) {
+      return `Remove big files, use .gitignore, and use tools like BFG Repo-Cleaner for cleanup.`;
+    } else if (/shallow clone/.test(text)) {
+      return `Use <code>git clone --depth=1</code> for a shallow clone limiting history size.`;
+    } else if (/git blame/.test(text)) {
+      return `git blame shows who last modified each line in a file.`;
+    } else if (/danger of force push/.test(text)) {
+      return `Force push can overwrite others' work. Prefer <code>--force-with-lease</code> and communicate first.`;
+    } else if (/protect main branch/.test(text)) {
+      return `Enable branch protection rules on your main branch in GitHub settings.`;
+    } else if (/orphan branch/.test(text)) {
+      return `An orphan branch starts fresh with no history using <code>git checkout --orphan new-branch</code>.`;
+
+
+    // === Miscellaneous & Community ===
+    } else if (/how to star github repo/.test(text)) {
+      return `Click the "Star" button at the top right on any GitHub repository page.`;
+    } else if (/what does watching a repo do/.test(text)) {
+      return `Watching a repo notifies you about all the activity and discussions.`;
+    } else if (/block user on github/.test(text)) {
+      return `On a user's profile, use the dropdown menu next to "Follow" to find "Block user".`;
+    } else if (/what is a readme file/.test(text)) {
+      return `README.md is a markdown file that explains your project, usage, and other info.`;
+    } else if (/can rename a repo/.test(text)) {
+      return `Yes, under repo Settings, you can rename your repository safely.`;
+    } else if (/what is a gitignore file/.test(text)) {
+      return `.gitignore tells Git which files/folders to ignore and not track.`;
+    } else if (/difference between open and closed issues/.test(text)) {
+      return `Open issues are pending; closed issues are resolved or dismissed.`;
+    } else if (/what are pinned repos/.test(text)) {
+      return `Pinned repos are featured repositories shown on your GitHub profile.`;
+    } else if (/how to contribute to open source/.test(text)) {
+      return `Fork the repo → Clone locally → Create branch → Make changes → Open a Pull Request.`;
+    } else if (/what is github explore/.test(text)) {
+      return `GitHub Explore helps discover trending repositories and developers.`;
+    } else if (/what is github sponsor/.test(text)) {
+      return `GitHub Sponsors allows you to financially support open-source maintainers.`;
+
+
+    // === Help and fallback with clickable suggestions ===
+    } else if (text.includes("help") || text.trim() === "") {
+      const suggestions = [
+        "How do I resolve a merge conflict?",
+        "How do I setup GitHub Actions for CI?",
+        "What is the difference between git pull and git fetch?",
+        "How do I securely add SSH keys?",
+        "How can I automate code review with Actions?",
+        "How do I use git stash?",
+        "Best practices for Pull Requests?",
+        "How to prevent dependency vulnerabilities?",
+        "Show me a basic .gitignore example",
+        "Advanced GitHub Actions features",
+        "GitHub CLI commands",
+        "GitHub Copilot features",
+        "How to setup webhooks?"
+      ];
+      return `<b>I'm here to help with Git, GitHub, and DevOps topics.</b><br>
+      Try one of these common questions:<br>
+      <div>${suggestions.map(q => `<button class="suggestion">${q}</button>`).join(" ")}</div>`;
+    } else {
+      // Generic fallback with clickable suggestions including advanced features
+      const suggestions = [
+        "Advanced GitHub Actions features",
+        "GitHub security scanning",
+        "How to create reusable workflows?",
+        "GitHub CLI automation",
+        "How to setup branch protection?",
+        "GitHub Projects management",
+        "Copilot code review features",
+        "Container registry setup"
+      ];
+      return `<b>I can help with Git, GitHub Actions, CI/CD, security, project management and advanced DevOps automation.</b><br>
+        Try asking about advanced topics:<br>
+        <div>${suggestions.map(q => `<button class="suggestion">${q}</button>`).join(" ")}</div>`;
+    }
+  }
+
+
+  // Initial greeting
+  setTimeout(() => {
+    addMessage(`👋 <b>Hello!</b><br>    
+    I'm your <b>Advanced GitHub DevOps Assistant</b> with enterprise-grade knowledge.<br>
+    Ask me about <b>advanced workflows</b>, <b>security scanning</b>, <b>project automation</b>, <b>GitHub CLI</b>, <b>Copilot features</b>, <b>container registries</b>, <b>webhooks</b>, and much more!`, "bot");
+  }, 200);
+</script>
+</body>
+</html>
